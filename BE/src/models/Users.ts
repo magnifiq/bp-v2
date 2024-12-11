@@ -1,4 +1,4 @@
-import { IUser } from "../types";
+import { IUser, UserRole } from "../types";
 import mongoose, { Schema } from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 
@@ -10,7 +10,7 @@ const userSchema = new Schema<IUser>(
     username: { type: String, required: true, unique: true },
     email: { type: String, required: true, unique: true },
     passwordHash: { type: String, required: true },
-    roleId: { type: String, required: true },
+    user_role: { type: String, enum: Object.values(UserRole), required: true },
     organizationId: { type: String, required: true },
     deletedAt: { type: Date, default: null },
   },

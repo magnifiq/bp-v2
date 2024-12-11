@@ -18,7 +18,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       username,
       email,
       password,
-      roleId,
+      user_role,
       organizationId,
     } = req.body;
 
@@ -37,7 +37,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       username,
       email,
       passwordHash,
-      roleId,
+      user_role,
       organizationId,
     });
 
@@ -69,14 +69,14 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     const token = jwt.sign(
-      { id: user._id, role: user.roleId },
+      { id: user._id, role: user.user_role },
       JWT_SECRET as string,
       {
         expiresIn: JWT_EXPIRATION,
       }
     );
 
-    res.status(200).json({ token, id: user._id, roleId: user.roleId });
+    res.status(200).json({ token, id: user._id, user_role: user.user_role });
   } catch (err) {
     if (err instanceof Error) {
       res.status(400).json({ message: err.message });

@@ -1,5 +1,11 @@
 import { Document } from "mongoose";
 
+export enum UserRole {
+  Admin = "admin",
+  Organization = "organization",
+  User = "user",
+}
+
 export interface IUser extends Document {
   uuid: string;
   firstName: string;
@@ -7,7 +13,7 @@ export interface IUser extends Document {
   username: string;
   email: string;
   passwordHash: string;
-  roleId: string;
+  user_role: UserRole;
   organizationId: string;
   createdAt?: Date;
   updatedAt?: Date;
