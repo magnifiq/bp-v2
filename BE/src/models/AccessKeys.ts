@@ -8,7 +8,7 @@ const accessKeySchema = new Schema<IAccessKey>(
     name: { type: String, required: true },
     organizationId: { type: String, required: true },
     licenseType: { type: String, required: true },
-    expire: { type: Date, required: true },
+    expireAt: { type: Date, required: true },
     active: { type: Boolean, required: true, default: true },
     deletedAt: { type: Date, default: null },
   },

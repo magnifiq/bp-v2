@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import Users from "../models/Users";
 import dotenv from "dotenv";
+import { AccessKeyRequest } from "../middlewares/toolAuthMiddleware";
 
 dotenv.config();
 
@@ -81,6 +82,34 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({ message: err.message });
     } else {
       res.status(500).json({ message: "Internal Server Error" });
+    }
+  }
+};
+
+export const toolAuth = async (
+  req: AccessKeyRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { user, accessKey } = req;
+
+    if (!user || !accessKey) {
+      res.status(400).json({ message: "User or access key not found." });
+      return;
+    }
+
+    res.status(200).json({
+      access_key: accessKey.uuid,
+      user_id: user.id,
+      organisation_name: user.organizationName || "Unknown",
+      key_type: accessKey.licenseType,
+      expire_at: accessKey.expireAt.toISOString(),
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      res.status(400).json({ message: error.message });
+    } else {
+      res.status(500).json({ message: "Internal server error." });
     }
   }
 };

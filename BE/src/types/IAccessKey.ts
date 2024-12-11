@@ -5,7 +5,7 @@ export interface IAccessKey extends Document {
   name: string;
   organizationId: string;
   licenseType: string;
-  expire: Date;
+  expireAt: Date;
   active: boolean;
   createdAt?: Date;
   updatedAt?: Date;

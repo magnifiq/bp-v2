@@ -1,0 +1,97 @@
+import { Request, Response, NextFunction } from "express";
+import AccessKeys from "../models/AccessKeys";
+import Users from "../models/Users";
+import { IAccessKey } from "../types";
+import bcrypt from "bcrypt";
+import Organizations from "../models/Organizations";
+
+export interface AccessKeyRequest extends Request {
+  user?: {
+    id: string;
+    username: string;
+    organizationId: string;
+    organizationName: string;
+  };
+  accessKey?: IAccessKey;
+}
+
+export const validateToolAuth = async (
+  req: AccessKeyRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!password || !username) {
+      res.status(400).json({ message: "Password and username are required." });
+      return;
+    }
+
+    const foundUser = await Users.findOne({
+      $or: [{ username }, { email: username }],
+    });
+
+    if (!foundUser) {
+      res.status(401).json({ message: "Username isn't correct" });
+      return;
+    }
+    const isMatch = await bcrypt.compare(password, foundUser.passwordHash);
+
+    if (!isMatch) {
+      res.status(401).json({ message: "Invalid password" });
+      return;
+    }
+
+    const foundOrganization = await Organizations.findOne({
+      _id: foundUser.organizationId,
+    });
+
+    if (!foundOrganization) {
+      res
+        .status(401)
+        .json({ message: "Organization not found for this user." });
+      return;
+    }
+    const user = {
+      id: (foundUser._id as string).toString(),
+      username: foundUser.username,
+      organizationId: (foundOrganization._id as string).toString(),
+      organizationName: foundOrganization.name,
+    };
+
+    if (!user) {
+      res
+        .status(401)
+        .json({ message: "Invalid user or mismatched access key." });
+      return;
+    }
+
+    const organizationAccessKey = await AccessKeys.findOne({
+      organizationId: user.organizationId,
+    });
+
+    if (!organizationAccessKey) {
+      res.status(401).json({
+        message: "No access key found for the organization.",
+        user: {
+          username: user.username,
+          id: user.id,
+          organizationId: user.organizationId || null,
+          organizationName: user.organizationName || null,
+        },
+      });
+      return;
+    }
+
+    req.user = user; //userWithOrganization
+    req.accessKey = organizationAccessKey;
+    next();
+  } catch (err) {
+    if (err instanceof Error) {
+      res.status(400).json({ message: err.message });
+    } else {
+      res.status(500).json({ message: "Internal server error." });
+    }
+  }
+};
