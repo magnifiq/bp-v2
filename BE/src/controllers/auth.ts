@@ -69,14 +69,14 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     const token = jwt.sign(
-      { id: user._id, role: user.user_role },
+      { id: user.uuid, role: user.user_role },
       JWT_SECRET as string,
       {
         expiresIn: JWT_EXPIRATION,
       }
     );
 
-    res.status(200).json({ token, id: user._id, user_role: user.user_role });
+    res.status(200).json({ token, id: user.uuid, user_role: user.user_role });
   } catch (err) {
     if (err instanceof Error) {
       res.status(400).json({ message: err.message });
@@ -100,7 +100,10 @@ export const toolAuth = async (
 
     res.status(200).json({
       access_key: accessKey.uuid,
+      username: user.username,
       user_id: user.id,
+      user_role: user.user_role,
+      organization_id: user.organizationId,
       organisation_name: user.organizationName || "Unknown",
       key_type: accessKey.licenseType,
       expire_at: accessKey.expireAt.toISOString(),

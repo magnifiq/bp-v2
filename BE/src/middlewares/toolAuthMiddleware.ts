@@ -9,6 +9,7 @@ export interface AccessKeyRequest extends Request {
   user?: {
     id: string;
     username: string;
+    user_role: string;
     organizationId: string;
     organizationName: string;
   };
@@ -44,7 +45,7 @@ export const validateToolAuth = async (
     }
 
     const foundOrganization = await Organizations.findOne({
-      _id: foundUser.organizationId,
+      uuid: foundUser.organizationId,
     });
 
     if (!foundOrganization) {
@@ -54,9 +55,10 @@ export const validateToolAuth = async (
       return;
     }
     const user = {
-      id: (foundUser._id as string).toString(),
+      id: (foundUser.uuid as string).toString(),
       username: foundUser.username,
-      organizationId: (foundOrganization._id as string).toString(),
+      user_role: foundUser.user_role,
+      organizationId: (foundOrganization.uuid as string).toString(),
       organizationName: foundOrganization.name,
     };
 
