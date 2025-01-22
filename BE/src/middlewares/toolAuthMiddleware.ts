@@ -86,6 +86,21 @@ export const validateToolAuth = async (
       return;
     }
 
+    const currentDate = new Date();
+    if (
+      organizationAccessKey.expireAt &&
+      currentDate > organizationAccessKey.expireAt
+    ) {
+      res.status(401).json({
+        message: "Access key is expired.",
+        key_details: {
+          accessKeyId: organizationAccessKey.uuid,
+          expireAt: organizationAccessKey.expireAt,
+        },
+      });
+      return;
+    }
+
     req.user = user; //userWithOrganization
     req.accessKey = organizationAccessKey;
     next();

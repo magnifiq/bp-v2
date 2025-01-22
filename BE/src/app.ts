@@ -14,4 +14,5 @@ app.post("/register", register);
 app.post("/login", login);
 app.post("/reset-password", authenticateJWT, resetPassword);
 app.post("/tool-auth", validateToolAuth, toolAuth);
+//add me endpoint
 export default app;
