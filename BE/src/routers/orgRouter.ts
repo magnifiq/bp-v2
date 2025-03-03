@@ -14,6 +14,14 @@ import {
   queryRuns,
 } from "../controllers/org/orgRuns/orgRuns";
 
+import {
+  findProjectInOrg,
+  fetchAllProjects,
+  addUserToProject,
+  deleteUserFromProject,
+  createProject,
+} from "../controllers/org/orgProjects/orgProjects";
+
 const orgRouter = Router();
 
 // user-associated routes
@@ -27,5 +35,15 @@ orgRouter.delete("/user/:id", authenticateJWT, deleteUserFromOrganization);
 orgRouter.get("/run/:id", authenticateJWT, findRunById);
 orgRouter.delete("/run/:id", authenticateJWT, deleteRunFromOrganization);
 orgRouter.get("/run", authenticateJWT, queryRuns);
-// TODO: queryRns and findRuns combine because it will override
+
+//projects-associated routes
+orgRouter.get("/projects/:id", authenticateJWT, findProjectInOrg);
+orgRouter.get("/projects", authenticateJWT, fetchAllProjects);
+orgRouter.post("/project/create", authenticateJWT, createProject);
+orgRouter.post("/add_to_project/:id", authenticateJWT, addUserToProject);
+orgRouter.delete(
+  "/delete_from_project/:id",
+  authenticateJWT,
+  deleteUserFromProject
+);
 export default orgRouter;
