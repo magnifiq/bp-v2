@@ -14,8 +14,7 @@ export const addUserToOrganization = async (
   try {
     const { firstName, lastName, email, role } = req.body;
 
-    const userInfo = checkOrganizationRole(req, res);
-    if (!userInfo) return;
+    const userInfo = checkOrganizationRole(req);
 
     const { id } = userInfo;
 
@@ -33,17 +32,21 @@ export const addUserToOrganization = async (
       passwordHash,
     });
 
-    try {
-      await newUser.save();
-    } catch (error) {
-      if (error instanceof Error) {
-        console.error(
-          "Error when adding a new user to the organization:",
-          error.message
-        );
-        res.status(500).json({
-          message: "Error when adding a new user to the organization",
-        });
+    await newUser.save();
+
+    res
+      .status(201)
+      .json({ user_id: newUser.uuid, created_at: newUser.createdAt });
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === "Unauthorized access") {
+        res.status(401).json({ message: "Unauthorized access" });
+      } else if (
+        error.message === "The user doesn't have the organization role"
+      ) {
+        res
+          .status(409)
+          .json({ message: "The user doesn't have the organization role" });
       } else {
         console.error(
           "Unknown error when adding a new user to the organization:",
@@ -53,29 +56,6 @@ export const addUserToOrganization = async (
           message: "Unknown error when adding a new user to the organization",
         });
       }
-      return;
-    }
-
-    res
-      .status(201)
-      .json({ user_id: newUser.uuid, created_at: newUser.createdAt });
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error(
-        "Error when adding a new user to the organization:",
-        error.message
-      );
-      res
-        .status(500)
-        .json({ message: "Error when adding a new user to the organization" });
-    } else {
-      console.error(
-        "Unknown error when adding a new user to the organization:",
-        error
-      );
-      res.status(500).json({
-        message: "Unknown error when adding a new user to the organization",
-      });
     }
   }
 };
@@ -88,8 +68,7 @@ export const updateOrganizationUser = async (
     const { id: user_id } = req.params;
     const { first_name, last_name, email } = req.body;
 
-    const userInfo = checkOrganizationRole(req, res);
-    if (!userInfo) return;
+    const userInfo = checkOrganizationRole(req);
 
     const { id } = userInfo;
 
@@ -106,6 +85,14 @@ export const updateOrganizationUser = async (
         res.status(404).json({ message: "User not found" });
       } else if (error.message === "User not in the organization") {
         res.status(403).json({ message: "User not in the organization" });
+      } else if (error.message === "Unauthorized access") {
+        res.status(401).json({ message: "Unauthorized access" });
+      } else if (
+        error.message === "The user doesn't have the organization role"
+      ) {
+        res
+          .status(409)
+          .json({ message: "The user doesn't have the organization role" });
       } else {
         console.error("Error when updating the user:", error.message);
         res.status(500).json({ message: "Error when updating the user" });
@@ -122,8 +109,7 @@ export const findUsersInOrganization = async (
   res: Response
 ): Promise<void> => {
   try {
-    const userInfo = checkOrganizationRole(req, res);
-    if (!userInfo) return;
+    const userInfo = checkOrganizationRole(req);
 
     const { id } = userInfo;
 
@@ -132,13 +118,15 @@ export const findUsersInOrganization = async (
     res.status(200).json(users);
   } catch (error) {
     if (error instanceof Error) {
-      console.error(
-        "Error when fetching users by organization:",
-        error.message
-      );
-      res
-        .status(500)
-        .json({ message: "Error when fetching users by organization" });
+      if (error.message === "Unauthorized access") {
+        res.status(401).json({ message: "Unauthorized access" });
+      } else if (
+        error.message === "The user doesn't have the organization role"
+      ) {
+        res
+          .status(409)
+          .json({ message: "The user doesn't have the organization role" });
+      }
     } else {
       console.error(
         "Unknown error when fetching users by organization:",
@@ -158,7 +146,7 @@ export const findUserById = async (
   try {
     const { id: user_id } = req.params;
 
-    const userInfo = checkOrganizationRole(req, res);
+    const userInfo = checkOrganizationRole(req);
     if (!userInfo) return;
 
     const { id } = userInfo;
@@ -171,6 +159,14 @@ export const findUserById = async (
         res.status(404).json({ message: "User not found" });
       } else if (error.message === "User not in the organization") {
         res.status(403).json({ message: "User not in the organization" });
+      } else if (error.message === "Unauthorized access") {
+        res.status(401).json({ message: "Unauthorized access" });
+      } else if (
+        error.message === "The user doesn't have the organization role"
+      ) {
+        res
+          .status(409)
+          .json({ message: "The user doesn't have the organization role" });
       } else {
         console.error("Error when fetching user by ID:", error.message);
         res.status(500).json({ message: "Error when fetching user by ID" });
@@ -191,8 +187,7 @@ export const deleteUserFromOrganization = async (
   try {
     const { id: user_id } = req.params;
 
-    const userInfo = checkOrganizationRole(req, res);
-    if (!userInfo) return;
+    const userInfo = checkOrganizationRole(req);
 
     const { id } = userInfo;
     const user = await findUserAndCheckOrganization(user_id, id);
@@ -205,6 +200,14 @@ export const deleteUserFromOrganization = async (
         res.status(404).json({ message: "User not found" });
       } else if (error.message === "User not in the organization") {
         res.status(403).json({ message: "User not in the organization" });
+      } else if (error.message === "Unauthorized access") {
+        res.status(401).json({ message: "Unauthorized access" });
+      } else if (
+        error.message === "The user doesn't have the organization role"
+      ) {
+        res
+          .status(409)
+          .json({ message: "The user doesn't have the organization role" });
       } else {
         console.error(
           "Error when deleting a user from the organization:",

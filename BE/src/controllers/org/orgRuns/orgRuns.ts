@@ -16,8 +16,7 @@ export const findRunById = async (
   try {
     const { id: run_id } = req.params;
 
-    const orgInfo = checkOrganizationRole(req, res);
-    if (!orgInfo) return;
+    const orgInfo = checkOrganizationRole(req);
 
     const { id } = orgInfo;
     const run = await Runs.findOne({ uuid: run_id });
@@ -40,11 +39,22 @@ export const findRunById = async (
 
     res.status(200).json(runBelongsToOrg);
   } catch (error) {
-    console.error("Error when fetching run by ID:", error);
-    res.status(500).json({ message: "Error when fetching run by ID" });
+    if (error instanceof Error) {
+      if (error.message === "Unauthorized access") {
+        res.status(401).json({ message: "Unauthorized access" });
+      } else if (
+        error.message === "The user doesn't have the organization role"
+      ) {
+        res
+          .status(409)
+          .json({ message: "The user doesn't have the organization role" });
+      } else {
+        console.error("Error when fetching run by ID:", error);
+        res.status(500).json({ message: "Error when fetching run by ID" });
+      }
+    }
   }
 };
-
 export const deleteRunFromOrganization = async (
   req: AuthenticatedRequest,
   res: Response
@@ -52,8 +62,7 @@ export const deleteRunFromOrganization = async (
   try {
     const { id: run_id } = req.params;
 
-    const orgInfo = checkOrganizationRole(req, res);
-    if (!orgInfo) return;
+    const orgInfo = checkOrganizationRole(req);
 
     const { id } = orgInfo;
     const run = await Runs.findOne({ uuid: run_id });
@@ -78,8 +87,25 @@ export const deleteRunFromOrganization = async (
     await Runs.deleteOne({ uuid: run_id });
     res.status(200).json({ run_id: run_id, deleted_at: run.deletedAt });
   } catch (error) {
-    console.error("Error when deleting run by ID:", error);
-    res.status(500).json({ message: "Error when deleting run by ID" });
+    if (error instanceof Error) {
+      if (error.message === "Unauthorized access") {
+        res.status(401).json({ message: "Unauthorized access" });
+      } else if (
+        error.message === "The user doesn't have the organization role"
+      ) {
+        res
+          .status(409)
+          .json({ message: "The user doesn't have the organization role" });
+      } else {
+        console.error("Error when deleting run by ID:", error);
+        res.status(500).json({ message: "Error when deleting run by ID" });
+      }
+    } else {
+      console.error("Unknown error when deleting run by ID:", error);
+      res
+        .status(500)
+        .json({ message: "Unknown error when deleting run by ID" });
+    }
   }
 };
 
@@ -101,8 +127,7 @@ export const queryRuns = async (
   res: Response
 ): Promise<void> => {
   try {
-    const orgInfo = checkOrganizationRole(req, res);
-    if (!orgInfo) return;
+    const orgInfo = checkOrganizationRole(req);
 
     const { id } = orgInfo;
 
@@ -122,7 +147,7 @@ export const queryRuns = async (
     if (run_id) {
       const run = await Runs.findOne({ uuid: run_id as string });
       if (!run) {
-        res.status(404).json("Run isn't found");
+        res.status(406).json("Run isn't found");
         return;
       }
 
@@ -194,8 +219,23 @@ export const queryRuns = async (
     const runs = await Runs.find(query);
 
     res.status(200).json(runs);
-  } catch (err) {
-    console.error("Error when querying runs:", err);
-    res.status(500).json({ message: "Error when querying runs" });
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === "Unauthorized access") {
+        res.status(401).json({ message: "Unauthorized access" });
+      } else if (
+        error.message === "The user doesn't have the organization role"
+      ) {
+        res
+          .status(409)
+          .json({ message: "The user doesn't have the organization role" });
+      } else {
+        console.error("Error when fetching run by ID:", error);
+        res.status(500).json({ message: "Error when fetching run by ID" });
+      }
+    } else {
+      console.error("Error when querying runs:", error);
+      res.status(500).json({ message: "Error when querying runs" });
+    }
   }
 };
