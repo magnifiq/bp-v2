@@ -6,13 +6,13 @@ import {
   updateOrganizationUser,
   findUserById,
   deleteUserFromOrganization,
-} from "../controllers/org/orgUser/orgUser";
+} from "../controllers/org/users/users";
 
 import {
   findRunById,
   deleteRunFromOrganization,
   queryRuns,
-} from "../controllers/org/orgRuns/orgRuns";
+} from "../controllers/org/runs/runs";
 
 import {
   findProjectInOrg,
@@ -20,7 +20,7 @@ import {
   addUserToProject,
   deleteUserFromProject,
   createProject,
-} from "../controllers/org/orgProjects/orgProjects";
+} from "../controllers/org/projects/projects";
 
 const orgRouter = Router();
 
