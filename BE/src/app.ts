@@ -33,4 +33,7 @@ app.use("/org", orgRouter);
 //user routes
 app.use("/user", userRouter);
 
+//admin routes
+app.use("/admin", adminRouter);
+
 export default app;
