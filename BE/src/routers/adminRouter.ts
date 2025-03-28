@@ -14,6 +14,11 @@ import {
   findUser,
   updateUser,
 } from "../controllers/admin/users/users";
+import {
+  deleteRun,
+  findRunById,
+  queryRuns,
+} from "../controllers/admin/runs/runs";
 
 const adminRouter = Router();
 
@@ -33,4 +38,8 @@ adminRouter.put("/user/:id", authenticateJWT, updateUser);
 adminRouter.get("/user/:id", authenticateJWT, findUser);
 adminRouter.get("/users", authenticateJWT, fetchAllUsers);
 adminRouter.delete("/user/:id", authenticateJWT, deleteUser);
+
+adminRouter.get("/run/:id", authenticateJWT, findRunById);
+adminRouter.delete("/run/:id", authenticateJWT, deleteRun);
+adminRouter.get("/run", authenticateJWT, queryRuns);
 export default adminRouter;
