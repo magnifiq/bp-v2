@@ -19,6 +19,12 @@ import {
   findRunById,
   queryRuns,
 } from "../controllers/admin/runs/runs";
+import {
+  createProject,
+  deleteProject,
+  fetchAllProjects,
+  findProject,
+} from "../controllers/admin/projects/projects";
 
 const adminRouter = Router();
 
@@ -42,4 +48,9 @@ adminRouter.delete("/user/:id", authenticateJWT, deleteUser);
 adminRouter.get("/run/:id", authenticateJWT, findRunById);
 adminRouter.delete("/run/:id", authenticateJWT, deleteRun);
 adminRouter.get("/run", authenticateJWT, queryRuns);
+
+adminRouter.get("/project/:id", authenticateJWT, findProject);
+adminRouter.get("/projects", authenticateJWT, fetchAllProjects);
+adminRouter.post("/project", authenticateJWT, createProject);
+adminRouter.delete("/project/:id", authenticateJWT, deleteProject);
 export default adminRouter;
