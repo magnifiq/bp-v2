@@ -1,11 +1,15 @@
 import { Response } from "express";
-import bcrypt from "bcrypt";
 import Users from "../../../models/Users";
 import { AuthenticatedRequest } from "../../../middlewares/authMiddleware";
 import {
   checkOrganizationRole,
   findUserAndCheckOrganization,
 } from "../../../utils/org";
+import jwt from "jsonwebtoken";
+import { sendEmail } from "../../../utils/common";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 export const addUserToOrganization = async (
   req: AuthenticatedRequest,
@@ -14,14 +18,8 @@ export const addUserToOrganization = async (
   try {
     const { firstName, lastName, email, role } = req.body;
 
-    const userInfo = checkOrganizationRole(req);
+    const { id } = checkOrganizationRole(req);
 
-    const { id } = userInfo;
-
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash("20GenFlow25", salt);
-
-    // all added users must reset passwords after first login, the first password is "20GenFlow25"
     const newUser = new Users({
       firstName,
       lastName,
@@ -29,27 +27,41 @@ export const addUserToOrganization = async (
       user_role: role,
       organizationId: id,
       username: email,
-      passwordHash,
+      passwordHash: "73jes",
     });
 
     await newUser.save();
 
+    const resetToken = jwt.sign(
+      { userId: newUser.uuid },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "24h" }
+    );
+
+    const BASE_URL =
+      process.env.NODE_ENV === "production"
+        ? process.env.PROD_URL
+        : `http://localhost:${process.env.PORT}`;
+
+    const resetLink = `${BASE_URL}/reset-token-password?token=${resetToken}`;
+
+    await sendEmail(
+      email,
+      "Set your password for user",
+      `The organization has created the user. Click here to set password: ${resetLink}`
+    );
     res
       .status(201)
       .json({ user_id: newUser.uuid, created_at: newUser.createdAt });
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message === "Unauthorized access") {
-        res.status(401).json({ message: "Unauthorized access" });
-      } else if (
-        error.message === "The user doesn't have the organization role"
-      ) {
+      if (error.message === "The user doesn't have the organization role") {
         res
           .status(409)
           .json({ message: "The user doesn't have the organization role" });
       } else {
         console.error(
-          "Unknown error when adding a new user to the organization:",
+          "Error when adding a new user to the organization:",
           error
         );
         res.status(500).json({
@@ -66,18 +78,27 @@ export const updateOrganizationUser = async (
 ): Promise<void> => {
   try {
     const { id: user_id } = req.params;
-    const { first_name, last_name, email } = req.body;
+    const updatedFields = req.body;
 
-    const userInfo = checkOrganizationRole(req);
-
-    const { id } = userInfo;
+    const { id } = checkOrganizationRole(req);
 
     const user = await findUserAndCheckOrganization(user_id, id);
-    user.firstName = first_name;
-    user.lastName = last_name;
-    user.email = email;
-    await user.save();
 
+    const fieldMappings: Record<string, string> = {
+      last_name: "lastName",
+      first_name: "firstName",
+      email: "email",
+      username: "username",
+    };
+
+    Object.keys(updatedFields).forEach((key) => {
+      const mappedKey = fieldMappings[key] || key;
+      if (fieldMappings[key] && updatedFields[key] !== undefined) {
+        (user as any)[mappedKey] = updatedFields[key];
+      }
+    });
+
+    await user.save();
     res.status(200).json({ user_id: user.uuid, updated_at: user.updatedAt });
   } catch (error) {
     if (error instanceof Error) {
@@ -85,8 +106,6 @@ export const updateOrganizationUser = async (
         res.status(404).json({ message: "User not found" });
       } else if (error.message === "User not in the organization") {
         res.status(403).json({ message: "User not in the organization" });
-      } else if (error.message === "Unauthorized access") {
-        res.status(401).json({ message: "Unauthorized access" });
       } else if (
         error.message === "The user doesn't have the organization role"
       ) {
@@ -109,29 +128,20 @@ export const findUsersInOrganization = async (
   res: Response
 ): Promise<void> => {
   try {
-    const userInfo = checkOrganizationRole(req);
+    const { id } = checkOrganizationRole(req);
 
-    const { id } = userInfo;
-
-    const users = await Users.find({ organizationId: id });
+    const users = await Users.find({ organizationId: id, deletedAt: null });
 
     res.status(200).json(users);
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message === "Unauthorized access") {
-        res.status(401).json({ message: "Unauthorized access" });
-      } else if (
-        error.message === "The user doesn't have the organization role"
-      ) {
+      if (error.message === "The user doesn't have the organization role") {
         res
           .status(409)
           .json({ message: "The user doesn't have the organization role" });
       }
     } else {
-      console.error(
-        "Unknown error when fetching users by organization:",
-        error
-      );
+      console.error("Error when fetching users by organization:", error);
       res
         .status(500)
         .json({ message: "Unknown error when fetching users by organization" });
@@ -145,11 +155,7 @@ export const findUserById = async (
 ): Promise<void> => {
   try {
     const { id: user_id } = req.params;
-
-    const userInfo = checkOrganizationRole(req);
-    if (!userInfo) return;
-
-    const { id } = userInfo;
+    const { id } = checkOrganizationRole(req);
 
     const user = await findUserAndCheckOrganization(user_id, id);
     res.status(200).json(user);
@@ -159,8 +165,6 @@ export const findUserById = async (
         res.status(404).json({ message: "User not found" });
       } else if (error.message === "User not in the organization") {
         res.status(403).json({ message: "User not in the organization" });
-      } else if (error.message === "Unauthorized access") {
-        res.status(401).json({ message: "Unauthorized access" });
       } else if (
         error.message === "The user doesn't have the organization role"
       ) {
@@ -186,22 +190,17 @@ export const deleteUserFromOrganization = async (
 ): Promise<void> => {
   try {
     const { id: user_id } = req.params;
-
-    const userInfo = checkOrganizationRole(req);
-
-    const { id } = userInfo;
+    const { id } = checkOrganizationRole(req);
     const user = await findUserAndCheckOrganization(user_id, id);
-    await Users.deleteOne({ uuid: user_id });
+    await user.softDelete();
 
-    res.status(200).json({ user_id: user.uuid, deleted_at: new Date() });
+    res.status(200).json({ user_id: user.uuid, deleted_at: user.deletedAt });
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === "User not found") {
         res.status(404).json({ message: "User not found" });
       } else if (error.message === "User not in the organization") {
         res.status(403).json({ message: "User not in the organization" });
-      } else if (error.message === "Unauthorized access") {
-        res.status(401).json({ message: "Unauthorized access" });
       } else if (
         error.message === "The user doesn't have the organization role"
       ) {
