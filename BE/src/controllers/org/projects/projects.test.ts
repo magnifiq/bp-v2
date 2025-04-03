@@ -7,6 +7,7 @@ import Projects from "../../../models/Projects";
 import UserProjects from "../../../models/UserProjects";
 import Samples from "../../../models/Samples";
 import Files from "../../../models/Files";
+import bcrypt from "bcrypt";
 
 dotenv.config();
 
@@ -22,8 +23,7 @@ describe("Organization projects calls", () => {
 
     try {
       await mongoose.connect(process.env.MONGO_URI as string);
-      const emails = ["asti@example.com", "outside@example.com"];
-      await Users.deleteMany({ email: { $in: emails } });
+      await Users.deleteMany({});
       await Projects.deleteMany({});
       await Files.deleteMany({});
 
@@ -38,29 +38,30 @@ describe("Organization projects calls", () => {
         username: "outside@example.com",
         passwordHash: "54294750027884",
       });
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash("11111", salt);
+
+      await Users.create({
+        email: "sample@organization.com",
+        firstName: "Sample",
+        lastName: "Organization",
+        user_role: "organization",
+        passwordHash,
+        organizationId: "00000",
+        username: "sampleorg",
+      });
 
       const savedUser = await outsideUser.save();
       savedUserId = savedUser.uuid;
       const res = await request(app)
-        .post("/login")
-        .send({ email: "sample@organization.com", password: "111111" });
+        .post("/auth/login")
+        .send({ email: "sample@organization.com", password: "11111" });
 
       const orgUserFound = await Users.findOne({
         email: "sample@organization.com",
       });
       if (orgUserFound) orgUserId = orgUserFound.uuid;
       token = res.body.token;
-      const res1 = await request(app)
-        .post("/org/user")
-        .set("Authorization", `Bearer ${token}`)
-        .send({
-          firstName: "Asti",
-          lastName: "Sample",
-          email: "asti@example.com",
-          role: "user",
-        });
-
-      userId = await res1.body.user_id;
 
       const org = await Users.findOne({
         email: "sample@organization.com",
@@ -69,6 +70,21 @@ describe("Organization projects calls", () => {
         throw new Error("Organization is not found");
       }
       const orgId = org.uuid;
+
+      const newUser = new Users({
+        firstName: "Asti",
+        username: "asti",
+        lastName: "Sample",
+        email: "asti@example.com",
+        user_role: "user",
+        organizationId: orgId,
+        passwordHash: "11223",
+      });
+
+      await newUser.save();
+
+      userId = newUser.uuid;
+
       const newProject = new Projects({
         name: "Test project",
         organizationId: orgId,
@@ -153,7 +169,7 @@ describe("Organization projects calls", () => {
       .send({ user_id: userId })
       .set("Authorization", `Bearer ${token}`);
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(412);
   });
 
   it("shouldn't add the user outside of the organization to the project", async () => {
@@ -181,7 +197,7 @@ describe("Organization projects calls", () => {
       .send({ user_id: userId })
       .set("Authorization", `Bearer ${token}`);
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(413);
   });
   it("shouldn't delete user who is outside of the organization from the project ", async () => {
     const res = await request(app)
@@ -254,5 +270,24 @@ describe("Organization projects calls", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(400);
+  });
+
+  it("shouldn't delete a project if a project doesn't belong to this organization", async () => {
+    const res = await request(app)
+      .delete(`/org/project/66575858`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it("should delete a project", async () => {
+    const res = await request(app)
+      .delete(`/org/project/${createdProjectId}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("project_id", createdProjectId);
+    expect(res.body.deleted_at).not.toBeNull();
+    const pair = await UserProjects.findOne({ projectId: createdProjectId });
+    expect(pair?.deletedAt).not.toBeNull();
   });
 });
