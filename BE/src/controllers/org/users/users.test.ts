@@ -2,8 +2,16 @@ import request from "supertest";
 import app from "../../../app";
 import mongoose from "mongoose";
 import Users from "../../../models/Users";
+import { sendEmail } from "../../../utils/common";
 import dotenv from "dotenv";
+import bcrypt from "bcrypt";
 dotenv.config();
+
+jest.mock("../../../utils/common", () => ({
+  sendEmail: jest
+    .fn()
+    .mockResolvedValue({ response: "Email sent successfully" }),
+}));
 
 describe("Organization user CRUD calls", () => {
   let token: string;
@@ -15,12 +23,7 @@ describe("Organization user CRUD calls", () => {
 
     try {
       await mongoose.connect(process.env.MONGO_URI as string);
-      const emails = [
-        "katri@example.com",
-        "alla@example.com",
-        "outside@example.com",
-      ];
-      await Users.deleteMany({ email: { $in: emails } });
+      await Users.deleteMany({});
 
       const outsideUser = new Users({
         firstName: "outside",
@@ -42,23 +45,23 @@ describe("Organization user CRUD calls", () => {
       }
       process.exit(1);
     }
-
-    // Create a test organization user and get a token
-    // const orgUser = new Users({
-    //   firstName: "Org",
-    //   lastName: "User",
-    //   email: "orguser@example.com",
-    //   user_role: "organization",
-    //   organizationId: "org123",
-    //   username: "orguser@example.com",
-    //   passwordHash: "54294750027884",
-    // });
-
-    // await orgUser.save();
     try {
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash("11111", salt);
+
+      await Users.create({
+        email: "sample@organization.com",
+        firstName: "Sample",
+        lastName: "Organization",
+        user_role: "organization",
+        passwordHash,
+        organizationId: "00000",
+        username: "sampleorg",
+      });
+
       const res = await request(app)
-        .post("/login")
-        .send({ email: "sample@organization.com", password: "111111" });
+        .post("/auth/login")
+        .send({ email: "sample@organization.com", password: "11111" });
 
       token = res.body.token;
     } catch (err) {
@@ -67,12 +70,7 @@ describe("Organization user CRUD calls", () => {
   });
 
   afterAll(async () => {
-    const emails = [
-      "katri@example.com",
-      "alla@example.com",
-      "outside@example.com",
-    ];
-    await Users.deleteMany({ email: { $in: emails } });
+    await Users.deleteMany({});
     await mongoose.connection.close();
   });
 
@@ -93,6 +91,12 @@ describe("Organization user CRUD calls", () => {
 
     // save the created user id for the next test
     userId = res.body.user_id;
+
+    expect(sendEmail).toHaveBeenCalledWith(
+      "katri@example.com",
+      "Set your password for user",
+      expect.stringContaining("Click here to set password")
+    );
   });
 
   it("should state error about adding a user by a user without organization role", async () => {
@@ -121,6 +125,10 @@ describe("Organization user CRUD calls", () => {
 
     expect(res.statusCode).toEqual(200);
     expect(res.body.user_id).toEqual(userId);
+    const updatedUser = await Users.findOne({ uuid: userId, deletedAt: null });
+    expect(updatedUser?.firstName).toEqual("KatriNew");
+    expect(updatedUser?.lastName).toEqual("Sample");
+    expect(updatedUser?.email).toEqual("katrinew@example.com");
     expect(res.body).toHaveProperty("updated_at");
   });
 
@@ -140,7 +148,7 @@ describe("Organization user CRUD calls", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.statusCode).toEqual(200);
-    expect(res.body.length).toBeGreaterThanOrEqual(2);
+    expect(res.body.length).toBe(2);
     const newUser = await Users.findOne({ uuid: newUserRes.body.user_id });
     if (!newUser) {
       throw new Error("New user not found");
@@ -186,6 +194,7 @@ describe("Organization user CRUD calls", () => {
 
     expect(res.statusCode).toEqual(200);
     expect(res.body.user_id).toEqual(userId);
+    expect(res.body.deleted_at).not.toBeNull();
   });
 
   it("should state error about a user outside the organization", async () => {
