@@ -25,13 +25,12 @@ export const findProjectInOrg = async (
 ): Promise<void> => {
   try {
     const { id: project_id } = req.params;
+    const { id } = checkOrganizationRole(req);
 
-    const orgInfo = checkOrganizationRole(req);
-
-    const { id } = orgInfo;
     const project = await Projects.findOne({
       organizationId: id,
       uuid: project_id,
+      deletedAt: null,
     });
 
     if (!project) {
@@ -42,11 +41,7 @@ export const findProjectInOrg = async (
     res.status(200).json(project);
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message === "Unauthorized access") {
-        res.status(401).json({ message: "Unauthorized access" });
-      } else if (
-        error.message === "The user doesn't have the organization role"
-      ) {
+      if (error.message === "The user doesn't have the organization role") {
         res
           .status(409)
           .json({ message: "The user doesn't have the organization role" });
@@ -63,18 +58,15 @@ export const fetchAllProjects = async (
   res: Response
 ): Promise<void> => {
   try {
-    const orgInfo = checkOrganizationRole(req);
-
-    const { id } = orgInfo;
-    const projects = await Projects.find({ organizationId: id });
+    const { id } = checkOrganizationRole(req);
+    const projects = await Projects.find({
+      organizationId: id,
+      deletedAt: null,
+    });
     res.status(200).json(projects);
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message === "Unauthorized access") {
-        res.status(401).json({ message: "Unauthorized access" });
-      } else if (
-        error.message === "The user doesn't have the organization role"
-      ) {
+      if (error.message === "The user doesn't have the organization role") {
         res
           .status(409)
           .json({ message: "The user doesn't have the organization role" });
@@ -91,12 +83,18 @@ export const createProject = async (
   res: Response
 ): Promise<void> => {
   try {
-    const orgInfo = checkOrganizationRole(req);
-
-    const { id } = orgInfo;
+    const { id } = checkOrganizationRole(req);
     const { name, diseaseId, description, doi, link, source, samples } =
       req.body;
-    if (!name || !diseaseId || !description || !samples) {
+    if (
+      !name ||
+      !diseaseId ||
+      !description ||
+      !samples ||
+      !doi ||
+      !link ||
+      !source
+    ) {
       res.status(400).json({ message: "Missing required fields" });
       return;
     }
@@ -110,8 +108,8 @@ export const createProject = async (
       source,
     });
 
-    const newProjectSaved = await newProject.save();
-    const newProjectId = newProjectSaved.uuid;
+    await newProject.save();
+    const newProjectId = newProject.uuid;
 
     const newUserProjectPair = new UserProjects({
       userId: id,
@@ -148,14 +146,10 @@ export const createProject = async (
         await newFile.save();
       })
     );
-    res.status(200).json(newProjectSaved);
+    res.status(200).json(newProject);
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message === "Unauthorized access") {
-        res.status(401).json({ message: "Unauthorized access" });
-      } else if (
-        error.message === "The user doesn't have the organization role"
-      ) {
+      if (error.message === "The user doesn't have the organization role") {
         res
           .status(409)
           .json({ message: "The user doesn't have the organization role" });
@@ -174,18 +168,18 @@ export const addUserToProject = async (
   try {
     const { id: project_id } = req.params;
     const { user_id } = req.body;
-    const orgInfo = checkOrganizationRole(req);
 
-    const { id } = orgInfo;
+    const { id } = checkOrganizationRole(req);
 
     const user = await findUserAndCheckOrganization(user_id, id);
 
     const existingPair = await UserProjects.findOne({
       userId: user.uuid,
       projectId: project_id,
+      deletedAt: null,
     });
     if (existingPair) {
-      res.status(409).json({ message: "User is already added to the project" });
+      res.status(412).json({ message: "User is already added to the project" });
       return;
     }
     const newUserProject = new UserProjects({
@@ -194,6 +188,7 @@ export const addUserToProject = async (
     });
 
     const savedUserProject = await newUserProject.save();
+
     res.status(200).json({
       project_id,
       user_id: savedUserProject.userId,
@@ -205,8 +200,6 @@ export const addUserToProject = async (
         res.status(404).json({ message: "User not found" });
       } else if (error.message === "User not in the organization") {
         res.status(403).json({ message: "User not in the organization" });
-      } else if (error.message === "Unauthorized access") {
-        res.status(401).json({ message: "Unauthorized access" });
       } else if (
         error.message === "The user doesn't have the organization role"
       ) {
@@ -230,9 +223,9 @@ export const deleteUserFromProject = async (
   try {
     const { id: project_id } = req.params;
     const { user_id } = req.body;
-    const orgInfo = checkOrganizationRole(req);
 
-    const { id } = orgInfo;
+    const { id } = checkOrganizationRole(req);
+
     if (user_id === id) {
       res
         .status(407)
@@ -243,22 +236,22 @@ export const deleteUserFromProject = async (
     const existingPair = await UserProjects.findOne({
       userId: user.uuid,
       projectId: project_id,
+      deletedAt: null,
     });
     if (!existingPair) {
-      res.status(409).json({ message: "User isn't added to the project" });
+      res.status(413).json({ message: "User isn't added to the project" });
       return;
     }
-    const deletedAt = new Date();
-    await existingPair.deleteOne({});
-    res.status(200).json({ project_id, user_id, deleted_at: deletedAt });
+    await existingPair.softDelete();
+    res
+      .status(200)
+      .json({ project_id, user_id, deleted_at: existingPair.deletedAt });
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === "User not found") {
         res.status(404).json({ message: "User not found" });
       } else if (error.message === "User not in the organization") {
         res.status(403).json({ message: "User not in the organization" });
-      } else if (error.message === "Unauthorized access") {
-        res.status(401).json({ message: "Unauthorized access" });
       } else if (
         error.message === "The user doesn't have the organization role"
       ) {
@@ -271,6 +264,54 @@ export const deleteUserFromProject = async (
       res
         .status(500)
         .json({ message: "Error when deleting a user from the project" });
+    }
+  }
+};
+
+export const deleteProject = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id: project_id } = req.params;
+
+    const { id } = checkOrganizationRole(req);
+    const project = await Projects.findOne({
+      uuid: project_id,
+      organizationId: id,
+      deletedAt: null,
+    });
+
+    if (!project) {
+      res.status(404).json("Project isn't found");
+      return;
+    }
+
+    const pairs = await UserProjects.find({
+      projectId: project.uuid,
+      deletedAt: null,
+    });
+    for (const pair of pairs) {
+      await pair.softDelete();
+    }
+
+    await project.softDelete();
+
+    res.status(200).json({ project_id, deleted_at: project.deletedAt });
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === "The user doesn't have the 'admin' role") {
+        res.status(409).json({
+          message: "The user doesn't have the 'admin' role",
+        });
+      } else {
+        res.status(500).json({
+          message: "Error when deleting a project",
+        });
+      }
+    } else {
+      console.error("Error when deleting a project by ID:", error);
+      res.status(500).json({ message: "Error when deleting a project by ID" });
     }
   }
 };

@@ -4,7 +4,7 @@ export const findUserAndCheckOrganization = async (
   user_id: string,
   organizationId: string
 ): Promise<any> => {
-  const user = await Users.findOne({ uuid: user_id });
+  const user = await Users.findOne({ uuid: user_id, deletedAt: null });
   if (!user) {
     throw new Error("User not found");
   }

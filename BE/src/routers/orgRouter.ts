@@ -20,6 +20,7 @@ import {
   addUserToProject,
   deleteUserFromProject,
   createProject,
+  deleteProject,
 } from "../controllers/org/projects/projects";
 
 const orgRouter = Router();
@@ -40,6 +41,7 @@ orgRouter.get("/run", authenticateJWT, queryRuns);
 orgRouter.get("/projects/:id", authenticateJWT, findProjectInOrg);
 orgRouter.get("/projects", authenticateJWT, fetchAllProjects);
 orgRouter.post("/project/create", authenticateJWT, createProject);
+orgRouter.delete("/project/:id", authenticateJWT, deleteProject);
 orgRouter.post("/add_to_project/:id", authenticateJWT, addUserToProject);
 orgRouter.delete(
   "/delete_from_project/:id",
