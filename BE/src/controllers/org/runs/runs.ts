@@ -15,11 +15,9 @@ export const findRunById = async (
 ): Promise<void> => {
   try {
     const { id: run_id } = req.params;
+    const { id } = checkOrganizationRole(req);
 
-    const orgInfo = checkOrganizationRole(req);
-
-    const { id } = orgInfo;
-    const run = await Runs.findOne({ uuid: run_id });
+    const run = await Runs.findOne({ uuid: run_id, deletedAt: null });
 
     if (!run) {
       res.status(404).json("Run isn't found");
@@ -30,6 +28,7 @@ export const findRunById = async (
     const runBelongsToOrg = await Runs.findOne({
       uuid: run_id,
       userId: { $in: userIds },
+      deletedAt: null,
     });
 
     if (!runBelongsToOrg) {
@@ -40,11 +39,7 @@ export const findRunById = async (
     res.status(200).json(runBelongsToOrg);
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message === "Unauthorized access") {
-        res.status(401).json({ message: "Unauthorized access" });
-      } else if (
-        error.message === "The user doesn't have the organization role"
-      ) {
+      if (error.message === "The user doesn't have the organization role") {
         res
           .status(409)
           .json({ message: "The user doesn't have the organization role" });
@@ -55,6 +50,7 @@ export const findRunById = async (
     }
   }
 };
+
 export const deleteRunFromOrganization = async (
   req: AuthenticatedRequest,
   res: Response
@@ -62,11 +58,8 @@ export const deleteRunFromOrganization = async (
   try {
     const { id: run_id } = req.params;
 
-    const orgInfo = checkOrganizationRole(req);
-
-    const { id } = orgInfo;
-    const run = await Runs.findOne({ uuid: run_id });
-
+    const { id } = checkOrganizationRole(req);
+    const run = await Runs.findOne({ uuid: run_id, deletedAt: null });
     if (!run) {
       res.status(404).json("Run isn't found");
       return;
@@ -77,22 +70,19 @@ export const deleteRunFromOrganization = async (
     const runBelongsToOrg = await Runs.findOne({
       uuid: run_id,
       userId: { $in: userIds },
+      deletedAt: null,
     });
 
     if (!runBelongsToOrg) {
       res.status(404).json("Run doesn't belong to this organization");
       return;
     }
+    await runBelongsToOrg.softDelete();
 
-    await Runs.deleteOne({ uuid: run_id });
-    res.status(200).json({ run_id: run_id, deleted_at: run.deletedAt });
+    res.status(200).json({ run_id, deleted_at: runBelongsToOrg.deletedAt });
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message === "Unauthorized access") {
-        res.status(401).json({ message: "Unauthorized access" });
-      } else if (
-        error.message === "The user doesn't have the organization role"
-      ) {
+      if (error.message === "The user doesn't have the organization role") {
         res
           .status(409)
           .json({ message: "The user doesn't have the organization role" });
@@ -120,6 +110,7 @@ interface queryProps {
   uuid?: { $in: string[] };
   userId?: { $in: string[] };
   createdAt?: { $gte?: Date; $lte?: Date };
+  deletedAt: null;
 }
 
 export const queryRuns = async (
@@ -127,9 +118,7 @@ export const queryRuns = async (
   res: Response
 ): Promise<void> => {
   try {
-    const orgInfo = checkOrganizationRole(req);
-
-    const { id } = orgInfo;
+    const { id } = checkOrganizationRole(req);
 
     const {
       name,
@@ -145,7 +134,10 @@ export const queryRuns = async (
     const userIds = await findUsersInOrg(id);
 
     if (run_id) {
-      const run = await Runs.findOne({ uuid: run_id as string });
+      const run = await Runs.findOne({
+        uuid: run_id as string,
+        deletedAt: null,
+      });
       if (!run) {
         res.status(406).json("Run isn't found");
         return;
@@ -154,6 +146,7 @@ export const queryRuns = async (
       const runBelongsToOrg = await Runs.findOne({
         uuid: run_id as string,
         userId: { $in: userIds },
+        deletedAt: null,
       });
 
       if (!runBelongsToOrg) {
@@ -164,7 +157,7 @@ export const queryRuns = async (
       res.status(200).json(runBelongsToOrg);
       return;
     }
-    const query: queryProps = { userId: { $in: userIds } };
+    const query: queryProps = { userId: { $in: userIds }, deletedAt: null };
 
     if (name) {
       query.name = { $regex: name as string, $options: "i" };
@@ -183,6 +176,7 @@ export const queryRuns = async (
       const users = await Users.find({
         organizationId: id,
         username: { $regex: user_name, $options: "i" },
+        deletedAt: null,
       });
 
       const userIds = users.map((user) => user.uuid);
@@ -193,18 +187,28 @@ export const queryRuns = async (
         name: { $regex: sample, $options: "i" },
       });
       const sampleIds = samples.map((sample) => sample.uuid);
-      const files = await Files.find({ sampleId: { $in: sampleIds } });
+      const files = await Files.find({
+        sampleId: { $in: sampleIds },
+        deletedAt: null,
+      });
       const fileIds = files.map((file) => file.uuid);
-      const pairs = await RunFiles.find({ fileId: { $in: fileIds } });
+      const pairs = await RunFiles.find({
+        fileId: { $in: fileIds },
+        deletedAt: null,
+      });
       const runIds = pairs.map((pair) => pair.runId);
       query.uuid = { $in: runIds };
     }
     if (stage) {
       const stages = await Stages.find({
         name: { $regex: stage, $options: "i" },
+        deletedAt: null,
       });
       const stageIds = stages.map((stage) => stage.uuid);
-      const pairs = await RunStages.find({ stageId: { $in: stageIds } });
+      const pairs = await RunStages.find({
+        stageId: { $in: stageIds },
+        deletedAt: null,
+      });
       const runIds = pairs.map((pair) => pair.runId);
 
       if (query.uuid) {
@@ -221,17 +225,13 @@ export const queryRuns = async (
     res.status(200).json(runs);
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message === "Unauthorized access") {
-        res.status(401).json({ message: "Unauthorized access" });
-      } else if (
-        error.message === "The user doesn't have the organization role"
-      ) {
+      if (error.message === "The user doesn't have the organization role") {
         res
           .status(409)
           .json({ message: "The user doesn't have the organization role" });
       } else {
-        console.error("Error when fetching run by ID:", error);
-        res.status(500).json({ message: "Error when fetching run by ID" });
+        console.error("Error when querying runs:", error);
+        res.status(500).json({ message: "Error when querying runs:" });
       }
     } else {
       console.error("Error when querying runs:", error);
