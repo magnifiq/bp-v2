@@ -9,6 +9,7 @@ import RunFiles from "../../../models/RunFiles";
 import dotenv from "dotenv";
 import Stages from "../../../models/Stages";
 import RunStages from "../../../models/RunStages";
+import bcrypt from "bcrypt";
 dotenv.config();
 
 describe("Organization runs CRUD calls", () => {
@@ -22,7 +23,7 @@ describe("Organization runs CRUD calls", () => {
 
     try {
       await mongoose.connect(process.env.MONGO_URI as string);
-      await Users.deleteMany({ email: "asti@example.com" });
+      await Users.deleteMany({});
       await Runs.deleteMany({});
       await Samples.deleteMany({});
       await Files.deleteMany({});
@@ -39,29 +40,47 @@ describe("Organization runs CRUD calls", () => {
     }
 
     try {
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash("11111", salt);
+
+      const org = await Users.create({
+        email: "sample@organization.com",
+        firstName: "Sample",
+        lastName: "Organization",
+        user_role: "organization",
+        passwordHash,
+        organizationId: "00000",
+        username: "sampleorg",
+      });
+
       const res = await request(app)
-        .post("/login")
-        .send({ email: "sample@organization.com", password: "111111" });
+        .post("/auth/login")
+        .send({ email: "sample@organization.com", password: "11111" });
 
       token = res.body.token;
-      const res1 = await request(app)
-        .post("/org/user")
-        .set("Authorization", `Bearer ${token}`)
-        .send({
-          firstName: "Asti",
-          lastName: "Sample",
-          email: "asti@example.com",
-          role: "user",
-        });
 
-      userId = await res1.body.user_id;
+      const orgId = org.uuid;
+
+      const newUser = new Users({
+        firstName: "Asti",
+        username: "asti",
+        lastName: "Sample",
+        email: "asti@example.com",
+        user_role: "user",
+        organizationId: orgId,
+        passwordHash: "11223",
+      });
+
+      await newUser.save();
+
+      userId = newUser.uuid;
 
       const newRun1 = new Runs({
         name: "Test Run NEW",
         accessId: "access123",
         userId: userId,
         runtime: "10m",
-        config: {},
+        config: { key: "value" },
         status: "started",
       });
 
@@ -71,7 +90,7 @@ describe("Organization runs CRUD calls", () => {
         accessId: "access1234",
         userId: userId,
         runtime: "10m",
-        config: {},
+        config: { key: "value" },
         status: "started",
       });
 
@@ -82,7 +101,7 @@ describe("Organization runs CRUD calls", () => {
         accessId: "access1234",
         userId: "24575",
         runtime: "10m",
-        config: {},
+        config: { key: "value" },
         status: "started",
         createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000 * 3), // 3 days ago
       });
@@ -119,7 +138,7 @@ describe("Organization runs CRUD calls", () => {
       const newStage1 = new Stages({
         name: "Stage 1",
         method: "meth1",
-        args: {},
+        args: { key: "value" },
       });
 
       await newStage1.save();
@@ -127,7 +146,7 @@ describe("Organization runs CRUD calls", () => {
       const newStage2 = new Stages({
         name: "Stage 2",
         method: "meth2",
-        args: {},
+        args: { key: "value" },
       });
 
       await newStage2.save();
@@ -141,6 +160,7 @@ describe("Organization runs CRUD calls", () => {
       const newPairSampleFile = new RunFiles({
         runId: runId,
         fileId: newFileId,
+        status: "started",
       });
 
       await newPairSampleFile.save();
@@ -148,6 +168,7 @@ describe("Organization runs CRUD calls", () => {
       const newRunStage1 = new RunStages({
         runId: runId,
         stageId: newStage1.uuid,
+        status: "started",
       });
 
       await newRunStage1.save();
@@ -155,6 +176,7 @@ describe("Organization runs CRUD calls", () => {
       const newRunStage2 = new RunStages({
         runId: runId,
         stageId: newStage2.uuid,
+        status: "started",
       });
 
       await newRunStage2.save();
@@ -164,7 +186,7 @@ describe("Organization runs CRUD calls", () => {
   });
 
   afterAll(async () => {
-    await Users.deleteMany({ email: "asti@example.com" });
+    await Users.deleteMany();
     await Runs.deleteMany({});
     await Samples.deleteMany({});
     await Files.deleteMany({});
@@ -329,7 +351,7 @@ describe("Organization runs CRUD calls", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.statusCode).toEqual(200);
-    expect(res.body).toHaveProperty("deleted_at");
+    expect(res.body.deleted_at).not.toBeNull();
   });
 
   it("should return 404 when a user tries to delete a run not in the organization", async () => {
