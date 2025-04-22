@@ -11,6 +11,7 @@ import { toolAuth } from "./controllers/auth";
 import orgRouter from "./routers/orgRouter";
 import userRouter from "./routers/userRouter";
 import adminRouter from "./routers/adminRouter";
+import toolRouter from "./routers/toolRouter";
 
 const app = express();
 
@@ -35,5 +36,8 @@ app.use("/user", userRouter);
 
 //admin routes
 app.use("/admin", adminRouter);
+
+// tool routes
+app.use("/tool", toolRouter);
 
 export default app;
