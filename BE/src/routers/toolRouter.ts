@@ -11,6 +11,7 @@ import {
 } from "../controllers/tool/projects/projects";
 import { updateRun } from "../controllers/tool/runs/runs";
 import { updateSystemStatus } from "../controllers/tool/status/status";
+import { sendStageUpdate } from "../controllers/tool/stages/stages";
 
 const toolRouter = Router();
 
@@ -27,4 +28,5 @@ toolRouter.post(
   validateAccessKeyMiddleware,
   updateSystemStatus
 );
+toolRouter.post("/stage", validateAccessKeyMiddleware, sendStageUpdate);
 export default toolRouter;
