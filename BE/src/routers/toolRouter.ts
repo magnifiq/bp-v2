@@ -12,6 +12,10 @@ import {
 import { updateRun } from "../controllers/tool/runs/runs";
 import { updateSystemStatus } from "../controllers/tool/status/status";
 import { sendStageUpdate } from "../controllers/tool/stages/stages";
+import {
+  addSample,
+  sendSampleUpdate,
+} from "../controllers/tool/samples/samples";
 
 const toolRouter = Router();
 
@@ -28,5 +32,7 @@ toolRouter.post(
   validateAccessKeyMiddleware,
   updateSystemStatus
 );
-toolRouter.post("/stage", validateAccessKeyMiddleware, sendStageUpdate);
+toolRouter.put("/stage", validateAccessKeyMiddleware, sendStageUpdate);
+toolRouter.put("/sample", validateAccessKeyMiddleware, sendSampleUpdate);
+toolRouter.post("/sample", validateAccessKeyMiddleware, addSample);
 export default toolRouter;
