@@ -10,6 +10,7 @@ import {
   queryProjects,
 } from "../controllers/tool/projects/projects";
 import { updateRun } from "../controllers/tool/runs/runs";
+import { updateSystemStatus } from "../controllers/tool/status/status";
 
 const toolRouter = Router();
 
@@ -21,4 +22,9 @@ toolRouter.get("/project", validateAccessKeyMiddleware, queryProjects);
 toolRouter.post("/project", validateAccessKeyMiddleware, createProject);
 
 toolRouter.put("/run/:run_id", validateAccessKeyMiddleware, updateRun);
+toolRouter.post(
+  "/status/:run_id",
+  validateAccessKeyMiddleware,
+  updateSystemStatus
+);
 export default toolRouter;
