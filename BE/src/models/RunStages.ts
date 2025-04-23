@@ -7,6 +7,11 @@ const runStageSchema = new Schema<IRunStage>(
     uuid: { type: String, required: true, unique: true, default: uuidv4 },
     runId: { type: String, required: true },
     stageId: { type: String, required: true },
+    status: {
+      type: String,
+      enum: ["started", "interrupted", "finished", "failed", "pending"],
+      required: true,
+    },
     deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
