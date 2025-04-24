@@ -1,5 +1,6 @@
-import UserProjects from "../models/UserProjects";
-import Projects from "../models/Projects";
+import UserProjects from "../../models/UserProjects";
+import Projects from "../../models/Projects";
+import Users from "../../models/Users";
 
 /**
  * Checks if a user has access to a specific project based on their role.
@@ -7,11 +8,12 @@ import Projects from "../models/Projects";
  * If a user has the role "organization", it checks if the organization is associated with the project (Projects DB).
  * If a user has the role "admin", it doesn't do any checks
  */
-const checkUserProjectAccess = async (
-  user_id: string,
-  project_id: string,
-  user_role: string
-): Promise<{ status: number; message: string }> => {
+const checkUserProjectAccess = async (user_id: string, project_id: string) => {
+  const foundUser = await Users.findOne({ uuid: user_id, deletedAt: null });
+  if (!foundUser) {
+    throw new Error("User isn't found");
+  }
+  const user_role = foundUser.user_role;
   if (user_role === "user") {
     const userProject = await UserProjects.findOne({
       userId: user_id,
@@ -19,10 +21,7 @@ const checkUserProjectAccess = async (
     });
 
     if (!userProject) {
-      return {
-        status: 403,
-        message: "User does not have access to this project.",
-      };
+      throw new Error("User does not have access to this project.");
     }
   } else if (user_role === "organization") {
     const organizationProject = await Projects.findOne({
@@ -31,14 +30,9 @@ const checkUserProjectAccess = async (
     });
 
     if (!organizationProject) {
-      return {
-        status: 403,
-        message: "Organization does not have access to this project.",
-      };
+      throw new Error("Organization does not have access to this project.");
     }
   }
-
-  return { status: 200, message: "Access granted." };
 };
 
 export default checkUserProjectAccess;

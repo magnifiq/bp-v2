@@ -1,17 +1,17 @@
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
-import Users from "../models/Users";
+import Users from "../../models/Users";
 import dotenv from "dotenv";
-import { AccessKeyRequest } from "../middlewares/toolAuthMiddleware";
-import Organizations from "../models/Organizations";
-import AccessKeys from "../models/AccessKeys";
-import Runs from "../models/Runs";
-import Samples from "../models/Samples";
-import Stages from "../models/Stages";
-import RunFiles from "../models/RunFiles";
-import RunStages from "../models/RunStages";
-import checkUserProjectAccess from "../utils/checkUserProjectAccess";
+import { AccessKeyRequest } from "../../middlewares/toolAuthMiddleware";
+import Runs from "../../models/Runs";
+import Samples from "../../models/Samples";
+import Stages from "../../models/Stages";
+import RunFiles from "../../models/RunFiles";
+import RunStages from "../../models/RunStages";
+import checkUserProjectAccess from "../../utils/common/checkUserProjectAccess";
+import { ValidateAccessKeyRequest } from "../../middlewares/validateAccessKeyMiddleware";
+import Files from "../../models/Files";
 dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -29,7 +29,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       organizationId,
     } = req.body;
 
-    const user = await Users.findOne({ email });
+    const user = await Users.findOne({ email, deletedAt: null });
 
     if (user) {
       throw new Error("User already exists");
@@ -63,7 +63,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;
 
-    const user = await Users.findOne({ email });
+    const user = await Users.findOne({ email, deletedAt: null });
 
     if (!user) {
       throw new Error("User does not exist");
@@ -124,10 +124,21 @@ export const toolAuth = async (
   }
 };
 
-export const me = async (req: Request, res: Response): Promise<void> => {
+interface Sample {
+  sample_name: string;
+  file_name: string;
+  file_path: string;
+  file_ext: string;
+  file_type: string;
+}
+
+export const me = async (
+  req: ValidateAccessKeyRequest,
+  res: Response
+): Promise<void> => {
   try {
     const {
-      access_key_id,
+      access_key: access_key_id,
       user_id,
       run_name,
       config,
@@ -135,6 +146,7 @@ export const me = async (req: Request, res: Response): Promise<void> => {
       project_id,
       from_stage,
       stages,
+      samples,
     } = req.body;
 
     if (
@@ -145,66 +157,16 @@ export const me = async (req: Request, res: Response): Promise<void> => {
       !project_id ||
       !from_stage ||
       !stages ||
-      !glob
+      !samples ||
+      samples.length === 0
     ) {
       res
-        .status(400)
+        .status(401)
         .json({ message: "Missing required fields in /me endpoint." });
-    }
-
-    const foundUser = await Users.findById(user_id);
-
-    if (!foundUser) {
-      res.status(401).json({ message: "User isn't found" });
       return;
     }
 
-    const foundOrganization = await Organizations.findOne({
-      uuid: foundUser.organizationId,
-    });
-
-    if (!foundOrganization) {
-      res
-        .status(401)
-        .json({ message: "Organization not found for this user." });
-      return;
-    }
-
-    const organizationAccessKey = await AccessKeys.findById({
-      foundOrganization,
-    });
-
-    if (!organizationAccessKey) {
-      res
-        .status(401)
-        .json({ message: "Access key not found for organization." });
-      return;
-    }
-
-    if (organizationAccessKey !== access_key_id) {
-      res.status(401).json({
-        message:
-          "Invalid access key. No match with the access key from the database.",
-      });
-      return;
-    }
-
-    const currentDate = new Date();
-    if (
-      organizationAccessKey.expireAt &&
-      currentDate > organizationAccessKey.expireAt
-    ) {
-      res.status(401).json({
-        message: "Access key is expired.",
-        key_details: {
-          accessKeyId: organizationAccessKey.uuid,
-          expireAt: organizationAccessKey.expireAt,
-        },
-      });
-      return;
-    }
-
-    //checkUserProjectAccess(user_id, project_id, foundUser.user_role);
+    checkUserProjectAccess(user_id, project_id);
 
     const newRun = new Runs({
       name: run_name,
@@ -217,71 +179,15 @@ export const me = async (req: Request, res: Response): Promise<void> => {
 
     await newRun.save();
 
-    const sampleNamesGlob = glob.split(".")[0];
-    const fileTypeGlob = glob.split(".")[1];
-    const stageFromObject = await Stages.findOne({ name: from_stage });
-
+    const stageFromObject = await Stages.findOne({
+      name: from_stage,
+      deletedAt: null,
+    });
     if (!stageFromObject) {
       res.status(404).json({ message: `Stage '${from_stage}' not found.` });
       return;
     }
-
     const stageFromId = stageFromObject.uuid;
-    // I need to pass specific samples(patients) to the run
-    // There I filter samples by project_id and samples names
-    const filteredSamples = await Samples.aggregate([
-      { $match: { project_id } },
-      {
-        $match: {
-          $name: { $regex: sampleNamesGlob, $options: "" },
-        },
-      },
-      {
-        $lookup: {
-          from: "files",
-          localField: "uuid",
-          foreignField: "sample_id",
-          as: "files",
-        },
-      },
-      {
-        $unwind: "$files",
-      },
-      {
-        $addFields: {
-          // file type is odbor cancer/normal so we need to take file ext from file name
-          file_extension: {
-            $arrayElemAt: [{ $split: ["$files.path", "."] }, -1],
-          },
-        },
-      },
-      {
-        $match: {
-          $and: [
-            { file_extension: { $regex: fileTypeGlob, $options: "" } },
-            { "files.stage_id": stageFromId },
-          ],
-        },
-      },
-      {
-        $project: {
-          sample_id: "$uuid",
-          sample_name: "$name",
-          file_id: "$files.uuid",
-          stage_id: "$files.stage_id",
-          stage_name: stageFromObject.name,
-          file_path: "$files.path",
-          file_type: "$files.type",
-        },
-      },
-    ]);
-
-    const runFiles = filteredSamples.map((sample) => ({
-      run_id: newRun.uuid,
-      file_id: sample.file_id,
-    }));
-
-    await RunFiles.insertMany(runFiles);
 
     //after that we need to add stages to stages database and run_stages db
     const stageIds: string[] = [];
@@ -300,35 +206,73 @@ export const me = async (req: Request, res: Response): Promise<void> => {
         });
 
         await newStage.save();
+        stageIds.push(newStage.uuid);
+      } else {
+        stageIds.push(existingStage.uuid);
       }
-
-      stageIds.push(stage.uuid);
     }
-
     // Add to run_stages
     const runStages = stageIds.map((stageId) => ({
-      run_id: newRun.uuid,
-      stage_id: stageId,
+      runId: newRun.uuid,
+      stageId: stageId,
+      status: "pending",
     }));
-
     await RunStages.insertMany(runStages);
 
     const filteredStages = await Promise.all(
       runStages.map(async (runStage) => {
-        const stage = await Stages.findOne({ uuid: runStage.stage_id });
+        const stage = await Stages.findOne({
+          uuid: runStage.stageId,
+          deletedAt: null,
+        });
         return {
-          stage_id: runStage.stage_id,
+          stage_id: runStage.stageId,
           stage_name: stage ? stage.name : "Unknown",
         };
       })
     );
 
-    const resultSamples = filteredSamples.map((sample) => {
+    const processedSamples = await Promise.all(
+      samples.map(async (sample: Sample) => {
+        const patient = new Samples({
+          projectId: project_id,
+          name: sample.sample_name,
+        });
+        await patient.save();
+        const file = await Files.create({
+          stageId: stageFromId,
+          name: sample.file_name,
+          path: sample.file_path,
+          ext: sample.file_ext,
+          type: sample.file_type,
+          sampleId: patient.uuid,
+        });
+
+        return {
+          sampleId: patient.uuid,
+          fileId: file.uuid,
+          sampleName: sample.file_name,
+          filePath: sample.file_path,
+          fileExt: sample.file_ext,
+          fileType: sample.file_type,
+        };
+      })
+    );
+
+    const runFiles = processedSamples.map((processedSample) => ({
+      runId: newRun.uuid,
+      fileId: processedSample.fileId,
+      status: "finished",
+    }));
+
+    await RunFiles.insertMany(runFiles);
+
+    const resultSamples = processedSamples.map((sample) => {
       return {
-        sample_path: sample.file_path,
-        sample_name: sample.sample_name,
-        sample_type: sample.file_type,
-        sample_id: sample.sample_id,
+        sample_path: sample.filePath,
+        sample_name: sample.sampleName,
+        sample_type: sample.fileType,
+        sample_id: sample.sampleId,
       };
     });
 
