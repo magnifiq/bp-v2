@@ -17,6 +17,12 @@ It is a backend application built with Node.js, Express, and MongoDB. It provide
 
 ---
 
+## GenFlow Architecture
+
+<img width="915" height="569" alt="image" src="https://github.com/user-attachments/assets/364b2dd3-c6c8-4c53-a02c-6fb3e1b6b5c3" />
+
+---
+
 ## Prerequisites
 
 Ensure you have the following installed:
@@ -24,6 +30,12 @@ Ensure you have the following installed:
 - **Node.js**: [Download Node.js](https://nodejs.org/)
 - **Docker** (optional, for containerized setup): [Install Docker](https://docs.docker.com/get-docker/)
 - **MongoDB**: [Install MongoDB](https://www.mongodb.com/try/download/community)
+
+---
+
+## Schema of components
+
+<img width="990" height="775" alt="image" src="https://github.com/user-attachments/assets/6c97c9fa-1b66-4609-ac72-2c891f64bb23" />
 
 ---
 
